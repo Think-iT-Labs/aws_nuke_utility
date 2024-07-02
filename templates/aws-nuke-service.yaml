@@ -5,14 +5,17 @@ Parameters:
   GitUser:
     Type: String
     Description: Git username
+    Default: Think-iT-Labs
 
   GitRepo:
     Type: String
     Description: Git repository
+    Default: aws_nuke_utility
 
   GitBranch:
     Type: String
     Description: Git branch
+    Default: master
 
   GitToken:
     Type: String
@@ -22,11 +25,12 @@ Parameters:
   AWSNukeVersionNumber:
     Description: The version number of an aws-nuke available release to download
     Type: String
-    Default: 2.12.0
+    Default: 2.25.0
 
   AWSNukeConfigFile:
     Description: The directory path to the config file used by aws-nuke
     Type: String
+    Default: aws-nuke-config/config.yaml
 
   AWSNukeProfileName:
     Description: The name of a CLI Profile to setup in AWS CodeBuild
@@ -48,16 +52,15 @@ Parameters:
   WhenToExecute:
     Description: Cron syntax in UTC when the resources will be terminated. #https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html
     Type: String
-    Default: "cron(0 0 * * ? *)"
+    Default: "cron(0 22 ? * 6 *)" #Every Friday at 22:00 UTC+1
 
   RetentionInDays:
     Description: Log retention in number of days
     Type: String
-    Default: '14'
+    Default: "14"
 
 Resources:
-
-#Notifications
+  #Notifications
 
   PipelineEvents:
     Type: "AWS::Events::Rule"
@@ -95,9 +98,9 @@ Resources:
               account: "$.account"
               region: "$.region"
 
-#CodePipeline Alerts
+  #CodePipeline Alerts
   PipelineEventsTopic:
-    Type: 'AWS::SNS::Topic'
+    Type: "AWS::SNS::Topic"
     Properties:
       DisplayName: !Sub "AWS CodePipeline Events ${AWS::AccountId}"
       Subscription:
@@ -109,60 +112,60 @@ Resources:
     Properties:
       PolicyDocument:
         Id: PipelineEventsTopicPolicy
-        Version: '2012-10-17'
+        Version: "2012-10-17"
         Statement:
-        - Effect: Allow
-          Principal:
-            Service:
-              - events.amazonaws.com
-          Action: sns:Publish
-          Resource: !Ref PipelineEventsTopic
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref PipelineEventsTopic
       Topics:
-      - !Ref PipelineEventsTopic
+        - !Ref PipelineEventsTopic
 
-#Trigger
+  #Trigger
   CronEvent:
     Type: AWS::Events::Rule
     Properties:
       Description: "Rule for Amazon CloudWatch Events to trigger a build"
       ScheduleExpression: !Ref WhenToExecute
       Name: !Join
-      - '-'
-      - - !Ref 'AWS::StackName'
-        - TriggerNuke
+        - "-"
+        - - !Ref "AWS::StackName"
+          - TriggerNuke
       State: ENABLED
       Targets:
-      - Arn: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${Pipeline}
-        Id: Run
-        RoleArn: !GetAtt EventRole.Arn
+        - Arn: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${Pipeline}
+          Id: Run
+          RoleArn: !GetAtt EventRole.Arn
 
-#Permissions
+  #Permissions
   EventRole:
     Type: AWS::IAM::Role
     Properties:
       Description: IAM role to allow Amazon CloudWatch Events to trigger AWS CodeBuild build
       AssumeRolePolicyDocument:
         Statement:
-        - Action: sts:AssumeRole
-          Effect: Allow
-          Principal:
-            Service:
-            - events.amazonaws.com
-          Sid: 1
-      Policies:
-      - PolicyDocument:
-          Statement:
-          - Action:
-            - codepipeline:StartPipelineExecution
+          - Action: sts:AssumeRole
             Effect: Allow
-            Resource: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${Pipeline}
-        PolicyName: !Join
-          - '-'
-          - - !Ref 'AWS::StackName'
-            - CloudWatchEventPolicy
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Sid: 1
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - codepipeline:StartPipelineExecution
+                Effect: Allow
+                Resource: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${Pipeline}
+          PolicyName: !Join
+            - "-"
+            - - !Ref "AWS::StackName"
+              - CloudWatchEventPolicy
       RoleName: !Join
-        - '-'
-        - - !Ref 'AWS::StackName'
+        - "-"
+        - - !Ref "AWS::StackName"
           - CloudWatchEventRule
 
   AwsNukePolicy:
@@ -170,16 +173,16 @@ Resources:
     Properties:
       PolicyDocument:
         Statement:
-        - Action:
-          - "*"
-          Effect: Allow
-          Resource: '*'
+          - Action:
+              - "*"
+            Effect: Allow
+            Resource: "*"
       PolicyName: !Join
-        - '-'
-        -  - !Ref 'AWS::StackName'
-           - AwsNukePolicy
+        - "-"
+        - - !Ref "AWS::StackName"
+          - AwsNukePolicy
       Roles:
-      - !Ref 'AwsNukeRole'
+        - !Ref "AwsNukeRole"
 
   AwsNukeRole:
     Type: AWS::IAM::Role
@@ -187,14 +190,14 @@ Resources:
       Description: Creating service role in IAM for aws-nuke to use when targetting resources for deletion
       AssumeRolePolicyDocument:
         Statement:
-        - Action: sts:AssumeRole
-          Effect: Allow
-          Principal:
-            AWS: !GetAtt CodeBuildRole.Arn
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt CodeBuildRole.Arn
       Path: /
       RoleName: !Join
-        - '-'
-        - - !Ref 'AWS::StackName'
+        - "-"
+        - - !Ref "AWS::StackName"
           - AwsNuke
 
   CodeBuildPolicy:
@@ -202,25 +205,25 @@ Resources:
     Properties:
       PolicyDocument:
         Statement:
-        - Action:
-          - logs:CreateLogGroup
-          - logs:CreateLogStream
-          - logs:PutLogEvents
-          Effect: Allow
-          Resource: '*'
-        - Action:
-          - s3:Get*
-          - s3:List*
-          Effect: Allow
-          Resource: 
-            - !Sub "${S3Bucket.Arn}"
-            - !Sub "${S3Bucket.Arn}/*"
+          - Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Effect: Allow
+            Resource: "*"
+          - Action:
+              - s3:Get*
+              - s3:List*
+            Effect: Allow
+            Resource:
+              - !Sub "${S3Bucket.Arn}"
+              - !Sub "${S3Bucket.Arn}/*"
       PolicyName: !Join
-        - '-'
-        -  - !Ref 'AWS::StackName'
-           - CodeBuildPolicy
+        - "-"
+        - - !Ref "AWS::StackName"
+          - CodeBuildPolicy
       Roles:
-      - !Ref 'CodeBuildRole'
+        - !Ref "CodeBuildRole"
 
   CodeBuildRole:
     Type: AWS::IAM::Role
@@ -228,14 +231,14 @@ Resources:
       Description: Creating service role in IAM for AWS CodeBuild
       AssumeRolePolicyDocument:
         Statement:
-        - Action: sts:AssumeRole
-          Effect: Allow
-          Principal:
-            Service: codebuild.amazonaws.com
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
       Path: /
       RoleName: !Join
-        - '-'
-        - - !Ref 'AWS::StackName'
+        - "-"
+        - - !Ref "AWS::StackName"
           - CodeBuild
 
   RoleCodePipeline:
@@ -243,50 +246,50 @@ Resources:
     Properties:
       AssumeRolePolicyDocument:
         Statement:
-        - Action:
-          - sts:AssumeRole
-          Effect: Allow
-          Principal:
-            Service:
-            - codepipeline.amazonaws.com
-        Version: '2012-10-17'
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+        Version: "2012-10-17"
       Path: "/"
       Policies:
         - PolicyName: root
           PolicyDocument:
-            Version: '2012-10-17'
+            Version: "2012-10-17"
             Statement:
-            - Resource: !Sub "arn:aws:s3:::${S3Bucket}"
-              Effect: Allow
-              Action:
-              - s3:List*
-              - s3:Get*
-              - s3:Put*
-              - s3:Delete*
-            - Resource: !Sub "arn:aws:s3:::${S3Bucket}/*"
-              Effect: Allow
-              Action:
-              - s3:List*
-              - s3:Get*
-              - s3:Put*
-              - s3:Delete*
-            - Resource: "*"
-              Effect: Allow
-              Action:
-              - codebuild:StartBuild
-              - codebuild:batchGetBuilds
-            - Resource: "*"
-              Effect: Allow
-              Action:
-              - logs:Describe*
-              - logs:Create*
-              - logs:Put*
-            - Resource: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:*
-              Effect: Allow
-              Action:
-              - sns:Publish
+              - Resource: !Sub "arn:aws:s3:::${S3Bucket}"
+                Effect: Allow
+                Action:
+                  - s3:List*
+                  - s3:Get*
+                  - s3:Put*
+                  - s3:Delete*
+              - Resource: !Sub "arn:aws:s3:::${S3Bucket}/*"
+                Effect: Allow
+                Action:
+                  - s3:List*
+                  - s3:Get*
+                  - s3:Put*
+                  - s3:Delete*
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:batchGetBuilds
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - logs:Describe*
+                  - logs:Create*
+                  - logs:Put*
+              - Resource: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:*
+                Effect: Allow
+                Action:
+                  - sns:Publish
 
-#S3 Bucket
+  #S3 Bucket
   S3Bucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -295,12 +298,12 @@ Resources:
         IgnorePublicAcls: true
         BlockPublicPolicy: true
         RestrictPublicBuckets: true
-      BucketEncryption: 
+      BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
-              SSEAlgorithm: 'AES256'
+              SSEAlgorithm: "AES256"
 
-#CodePipeline
+  #CodePipeline
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -311,49 +314,49 @@ Resources:
         Type: S3
         Location: !Ref S3Bucket
       Stages:
-      - Name: Source
-        Actions:
         - Name: Source
-          ActionTypeId:
-            Category: Source
-            Owner: ThirdParty
-            Version: "1"
-            Provider: GitHub
-          Configuration:
-            Owner: !Ref GitUser
-            Repo: !Ref GitRepo
-            Branch: !Ref GitBranch
-            OAuthToken: !Ref GitToken
-            PollForSourceChanges: false
-          OutputArtifacts:
-          - Name: Source
-          RunOrder: 1
-      - Name: Execute
-        Actions:
+          Actions:
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: "1"
+                Provider: GitHub
+              Configuration:
+                Owner: !Ref GitUser
+                Repo: !Ref GitRepo
+                Branch: !Ref GitBranch
+                OAuthToken: !Ref GitToken
+                PollForSourceChanges: false
+              OutputArtifacts:
+                - Name: Source
+              RunOrder: 1
         - Name: Execute
-          ActionTypeId:
-            Category: Build
-            Owner: AWS
-            Version: "1"
-            Provider: CodeBuild
-          Configuration:
-            ProjectName:
-              Ref: CodeBuildProject
-          InputArtifacts:
-          - Name: Source
-          OutputArtifacts: []
-          RunOrder: 1
+          Actions:
+            - Name: Execute
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: "1"
+                Provider: CodeBuild
+              Configuration:
+                ProjectName:
+                  Ref: CodeBuildProject
+              InputArtifacts:
+                - Name: Source
+              OutputArtifacts: []
+              RunOrder: 1
 
-#CodeBuild Project
+  #CodeBuild Project
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
       Artifacts:
         Type: CODEPIPELINE
       Description: !Join
-        - ''
-        - - 'CodeBuild Project for '
-          - !Ref 'AWS::StackName'
+        - ""
+        - - "CodeBuild Project for "
+          - !Ref "AWS::StackName"
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/standard:1.0
@@ -369,12 +372,12 @@ Resources:
             Value: !GetAtt AwsNukeRole.Arn
           - Name: AWS_NukeVersion
             Value: !Ref AWSNukeVersionNumber
-      Name: !Sub '${AWS::StackName}-CodeBuildProject'
-      ServiceRole: !Ref 'CodeBuildRole'
+      Name: !Sub "${AWS::StackName}-CodeBuildProject"
+      ServiceRole: !Ref "CodeBuildRole"
       LogsConfig:
         CloudWatchLogs:
-          Status:  ENABLED
-          GroupName:  !Ref CodeBuildLogGroup
+          Status: ENABLED
+          GroupName: !Ref CodeBuildLogGroup
       Source:
         Type: CODEPIPELINE
         BuildSpec: |
@@ -421,11 +424,11 @@ Resources:
 
 Outputs:
   StackName:
-    Description: 'Stack name'
-    Value: !Sub '${AWS::StackName}'
+    Description: "Stack name"
+    Value: !Sub "${AWS::StackName}"
   PipelineBucket:
-    Description: 'Pipeline Bucket'
-    Value: !Ref 'S3Bucket'
+    Description: "Pipeline Bucket"
+    Value: !Ref "S3Bucket"
   CodePipeline:
-    Description: 'Code Pipeline Console Link'
+    Description: "Code Pipeline Console Link"
     Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${Pipeline}/view?region=${AWS::Region}"
