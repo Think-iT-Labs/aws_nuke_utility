@@ -25,7 +25,7 @@ Parameters:
   AWSNukeVersionNumber:
     Description: The version number of an aws-nuke available release to download
     Type: String
-    Default: 2.25.0
+    Default: 2.12.0
 
   AWSNukeConfigFile:
     Description: The directory path to the config file used by aws-nuke
@@ -388,7 +388,7 @@ Resources:
                 - export AWS_NUKE_VERSION=$AWS_NukeVersion
                 - apt-get install -y wget
                 - wget https://github.com/rebuy-de/aws-nuke/releases/download/v$AWS_NUKE_VERSION/aws-nuke-v$AWS_NUKE_VERSION-linux-amd64.tar.gz --no-check-certificate
-                - tar xvf aws-nuke-v$AWS_NUKE_VERSION-linux-amd64.tar.gz --strip-components=1
+                - tar -xvzf aws-nuke-v$AWS_NUKE_VERSION-linux-amd64.tar.gz --strip-components=1
                 - chmod +x aws-nuke-v$AWS_NUKE_VERSION-linux-amd64
                 - mv aws-nuke-v$AWS_NUKE_VERSION-linux-amd64 /usr/local/bin/aws-nuke
                 - aws-nuke version
@@ -404,7 +404,7 @@ Resources:
               commands:
                 - ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
                 - echo "Updating AWS Account ID to $ACCOUNT_ID"
-                - sed -i "s/0000xx0000/$ACCOUNT_ID/g" $AWS_NukeConfigFile
+                - sed -i "s/0000x0000/$ACCOUNT_ID/g" $AWS_NukeConfigFile
                 - echo "Executing Nuke...."
                 - |
                   if [ "$AWS_NukeDryRun" = "true" ]; then
